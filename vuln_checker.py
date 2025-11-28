@@ -23,3 +23,55 @@ def get_vuln_by_name(vuln_name: str) -> dict | None:
 def get_vuln_by_id(vuln_id: str) -> dict | None:
     data = requests.get(NIST_VULN_ID.format(cve_id=vuln_id)).json()
     return data
+
+
+def parse_vuln(data: dict, pos = 0) -> dict | None:
+    result = {}
+
+    if data["totalResults"] == 0:
+        return None
+
+    if pos >= data["totalResults"]:
+        raise ValueError(f"{data['totalResults']} returned results is less than requested {pos}")
+
+    cve = data["vulnerabilities"][pos]["cve"]
+
+    result["id"] = cve["id"]
+
+    for description in cve["descriptions"]:
+        if description["lang"] == "en":
+            result["description"] = description["value"]
+            break
+    else:
+        result["description"] = None
+
+    result["comment"] = cve.get("evaluatorComment", None)
+    result["impact"] = cve.get("evaluatorImpact", None)
+    result["solution"] = cve.get("evaluatorSolution", None)
+
+    return result
+
+
+def print_vuln(filtered_data: dict) -> None:
+    output(f"ID: {filtered_data['id']}")
+    output(f"Description: {filtered_data['description']}")
+    output(f"Comment: {filtered_data['comment']}")
+    output(f"Impact: {filtered_data['impact']}")
+    output(f"Solution: {filtered_data['solution']}")
+
+
+def output(text, *args, display = True, out_file=None, **kwargs):
+    if display:
+        print(text, *args, **kwargs)
+    if out_file is not None:
+        with open(out_file, "a", encoding="UTF-8") as f:
+            print(text, *args, file=f, **kwargs)
+
+
+def main():
+    vuln_id_test = "CVE-2019-1010218"
+    print_vuln(parse_vuln(get_vuln_by_id(vuln_id_test)))
+
+
+if __name__ == '__main__':
+    main()
