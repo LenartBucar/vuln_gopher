@@ -1,76 +1,156 @@
 import requests
 import json
+from functools import partial
+from time import sleep
 
 INTERNETDB = "https://internetdb.shodan.io/{ip_address}"
 NIST_VULN_ID = "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
 NIST_VULN_NAME = "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName={cpe_name}"
 
+DELAY = 6.1
+
 
 def get_ip_data(ip: str) -> dict | None:
+    sleep(DELAY)
     data = requests.get(INTERNETDB.format(ip_address=ip)).json()
+    output(data)
     if "detail" in data:
-        print(data["detail"][0]["msg"])
+        if type(data["detail"]) is str:
+            output(data["detail"])
+        else:
+            output(data["detail"][0]["msg"])
         return None
     return data
 
 
 def get_vuln_by_name(vuln_name: str) -> dict | None:
     vuln_name = vuln_name.replace("/", "2.3:")
-    data = requests.get(NIST_VULN_NAME.format(cpe_name=vuln_name)).json()
+    try:
+        sleep(DELAY)
+        data = requests.get(NIST_VULN_NAME.format(cpe_name=vuln_name)).json()
+    except requests.exceptions.JSONDecodeError:
+        return {"ERROR": f"{vuln_name} returned no results"}
     return data
 
 
 def get_vuln_by_id(vuln_id: str) -> dict | None:
-    data = requests.get(NIST_VULN_ID.format(cve_id=vuln_id)).json()
+    try:
+        sleep(DELAY)
+        data = requests.get(NIST_VULN_ID.format(cve_id=vuln_id)).json()
+    except requests.exceptions.JSONDecodeError:
+        return {"ERROR": f"{vuln_id} returned no results"}
     return data
 
 
-def parse_vuln(data: dict, pos = 0) -> dict | None:
-    result = {}
+def parse_vuln(data: dict, pos = 0, display_all = False) -> list[dict] | None:
+    result = []
 
-    if data["totalResults"] == 0:
+    total_n = min(data["totalResults"], data["resultsPerPage"])
+
+    if total_n == 0:
         return None
 
-    if pos >= data["totalResults"]:
-        raise ValueError(f"{data['totalResults']} returned results is less than requested {pos}")
+    if pos >= total_n:
+        raise ValueError(f"{total_n} returned results is less than requested {pos}")
 
-    cve = data["vulnerabilities"][pos]["cve"]
 
-    result["id"] = cve["id"]
-
-    for description in cve["descriptions"]:
-        if description["lang"] == "en":
-            result["description"] = description["value"]
-            break
+    if display_all:
+        low = pos
+        high = total_n
     else:
-        result["description"] = None
+        low = pos
+        high = pos + 1
 
-    result["comment"] = cve.get("evaluatorComment", None)
-    result["impact"] = cve.get("evaluatorImpact", None)
-    result["solution"] = cve.get("evaluatorSolution", None)
+    for pos in range(low, high):
+        result.append({})
+        current = result[-1]
+        cve = data["vulnerabilities"][pos]["cve"]
+
+        current["id"] = cve["id"]
+
+        for description in cve["descriptions"]:
+            if description["lang"] == "en":
+                current["description"] = description["value"]
+                break
+        else:
+            current["description"] = None
+
+        current["comment"] = cve.get("evaluatorComment", None)
+        current["impact"] = cve.get("evaluatorImpact", None)
+        current["solution"] = cve.get("evaluatorSolution", None)
 
     return result
 
 
-def print_vuln(filtered_data: dict) -> None:
-    output(f"ID: {filtered_data['id']}")
-    output(f"Description: {filtered_data['description']}")
-    output(f"Comment: {filtered_data['comment']}")
-    output(f"Impact: {filtered_data['impact']}")
-    output(f"Solution: {filtered_data['solution']}")
+def print_vuln(filtered_data: list[dict]) -> None:
+    if filtered_data is None:
+        raise ValueError("No data returned")
+    for vuln in filtered_data:
+        output(f"ID: {vuln['id']}")
+        output(f"Description: {vuln['description']}")
+        output(f"Comment: {vuln['comment']}")
+        output(f"Impact: {vuln['impact']}")
+        output(f"Solution: {vuln['solution']}")
+        buffer()
 
 
-def output(text, *args, display = True, out_file=None, **kwargs):
+def output(text: str, *args, display: bool = True, out_file: str = "vulns_2.out", **kwargs) -> None:
     if display:
         print(text, *args, **kwargs)
     if out_file is not None:
         with open(out_file, "a", encoding="UTF-8") as f:
             print(text, *args, file=f, **kwargs)
 
+def buffer():
+    output("-"*10)
+
+def handle_ip(ip: str, display_all: bool = False) -> None:
+    data = get_ip_data(ip)
+    if data is None:
+        return
+
+    for name in data["cpes"]:
+        vuln = get_vuln_by_name(name)
+        if "ERROR" in vuln:
+            output(vuln["ERROR"])
+            buffer()
+            continue
+        try:
+            print_vuln(parse_vuln(vuln, display_all=display_all))
+        except ValueError as e:
+            output(f"{name}: {e}")
+            buffer()
+
+    for vuln_id in data["vulns"]:
+        vuln = get_vuln_by_id(vuln_id)
+        if "ERROR" in vuln:
+            output(vuln["ERROR"])
+            buffer()
+            continue
+        try:
+            print_vuln(parse_vuln(vuln, display_all=display_all))
+        except ValueError as e:
+            output(f"{vuln_id}: {e}")
+            buffer()
+
+    for port_num in data["ports"]:
+        ...  # TODO: Ports
+
 
 def main():
-    vuln_id_test = "CVE-2019-1010218"
-    print_vuln(parse_vuln(get_vuln_by_id(vuln_id_test)))
+    # output = partial(output, display=False)
+    # vuln_id_test = "CVE-2019-1010218"
+    # vuln_id_test = "CVE-2022-4900"
+    # print_vuln(parse_vuln(get_vuln_by_id(vuln_id_test)))
+
+    # vuln_name_test = "cpe:2.3:o:microsoft:windows_10:1607"
+    # vuln = get_vuln_by_name(vuln_name_test)
+    # output(vuln, out_file="vuln.json")
+    # print_vuln(parse_vuln(vuln, display_all=True))
+
+    # ip = "91.216.172.11"
+    ip = "84.255.196.242"
+    handle_ip(ip)
 
 
 if __name__ == '__main__':
