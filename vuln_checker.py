@@ -1,13 +1,22 @@
 import requests
 import json
-from functools import partial
 from time import sleep
+import dotenv
+from socket import getservbyport
 
 INTERNETDB = "https://internetdb.shodan.io/{ip_address}"
 NIST_VULN_ID = "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
 NIST_VULN_NAME = "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName={cpe_name}"
 
-DELAY = 6.1
+NIST_APIKEY = dotenv.dotenv_values(".env").get("NIST_APIKEY")
+HEADERS = {"apikey": NIST_APIKEY} if NIST_APIKEY is not None else {}
+
+OUTPUT_CONFIG = {"display": True, "out_file": None, "buffer": "-"*10}
+
+DELAY = 0.65
+
+if NIST_APIKEY is None:
+    DELAY *= 10
 
 
 def get_ip_data(ip: str) -> dict | None:
@@ -27,7 +36,7 @@ def get_vuln_by_name(vuln_name: str) -> dict | None:
     vuln_name = vuln_name.replace("/", "2.3:")
     try:
         sleep(DELAY)
-        data = requests.get(NIST_VULN_NAME.format(cpe_name=vuln_name)).json()
+        data = requests.get(NIST_VULN_NAME.format(cpe_name=vuln_name), headers=HEADERS).json()
     except requests.exceptions.JSONDecodeError:
         return {"ERROR": f"{vuln_name} returned no results"}
     return data
@@ -36,7 +45,7 @@ def get_vuln_by_name(vuln_name: str) -> dict | None:
 def get_vuln_by_id(vuln_id: str) -> dict | None:
     try:
         sleep(DELAY)
-        data = requests.get(NIST_VULN_ID.format(cve_id=vuln_id)).json()
+        data = requests.get(NIST_VULN_ID.format(cve_id=vuln_id), headers=HEADERS).json()
     except requests.exceptions.JSONDecodeError:
         return {"ERROR": f"{vuln_id} returned no results"}
     return data
@@ -94,15 +103,17 @@ def print_vuln(filtered_data: list[dict]) -> None:
         buffer()
 
 
-def output(text: str, *args, display: bool = True, out_file: str = "vulns_2.out", **kwargs) -> None:
-    if display:
+def output(text: str, *args, **kwargs) -> None:
+    if OUTPUT_CONFIG["display"]:
         print(text, *args, **kwargs)
+    out_file: str | None = OUTPUT_CONFIG["out_file"]
     if out_file is not None:
+        out_file: str
         with open(out_file, "a", encoding="UTF-8") as f:
             print(text, *args, file=f, **kwargs)
 
 def buffer():
-    output("-"*10)
+    output(OUTPUT_CONFIG["buffer"])
 
 def handle_ip(ip: str, display_all: bool = False) -> None:
     data = get_ip_data(ip)
@@ -134,11 +145,13 @@ def handle_ip(ip: str, display_all: bool = False) -> None:
             buffer()
 
     for port_num in data["ports"]:
-        ...  # TODO: Ports
+        try:
+            output(f"Port: {port_num} - {getservbyport(port_num)}")
+        except OSError as e:
+            output(f"Port: {port_num} - no known service found")
 
 
 def main():
-    # output = partial(output, display=False)
     # vuln_id_test = "CVE-2019-1010218"
     # vuln_id_test = "CVE-2022-4900"
     # print_vuln(parse_vuln(get_vuln_by_id(vuln_id_test)))
