@@ -22,8 +22,8 @@ class Config:
     if NIST_APIKEY is None:
         DELAY *= 10
 
-    CPE = "cpe"
-    CVE = "CVE"
+    CPE_IDENT = "cpe"
+    CVE_IDENT = "CVE"
 
     CACHE_FILE = "cache"
 
@@ -61,10 +61,10 @@ def get_vuln_by_id(vuln_id: str) -> dict | None:
 
 
 def get_vuln(vuln_str: str) -> dict | None:
-    if vuln_str.lower().startswith(Config.CPE):
+    if vuln_str.lower().startswith(Config.CPE_IDENT.lower()):
         return get_vuln_by_name(vuln_str)
 
-    if vuln_str.lower().startswith(Config.CVE):
+    if vuln_str.lower().startswith(Config.CVE_IDENT.lower()):
         return get_vuln_by_id(vuln_str)
 
     raise ValueError(f"Invalid format: {vuln_str}")
@@ -131,7 +131,11 @@ def handle_vuln(vuln_str: str, display_all: bool) -> list[dict] | None:
 
             cache[vuln_str] = vuln_data
 
-    print_vuln(vuln_data)
+    try:
+        print_vuln(vuln_data)
+    except ValueError as e:
+        output(f"{vuln_str}: {e}")
+        separator()
 
 
 def print_vuln(filtered_data: list[dict]) -> None:
