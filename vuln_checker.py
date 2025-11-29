@@ -6,29 +6,31 @@ from socket import getservbyport
 import argparse
 import shelve
 
-INTERNETDB = "https://internetdb.shodan.io/{ip_address}"
-NIST_VULN_ID = "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
-NIST_VULN_NAME = "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName={cpe_name}"
 
-NIST_APIKEY = dotenv.dotenv_values(".env").get("NIST_APIKEY")
-HEADERS = {"apikey": NIST_APIKEY} if NIST_APIKEY is not None else {}
+class Config:
+    INTERNETDB = "https://internetdb.shodan.io/{ip_address}"
+    NIST_VULN_ID = "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
+    NIST_VULN_NAME = "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName={cpe_name}"
 
-OUTPUT_CONFIG = {"display": True, "out_file": None, "separator": "-"*10, "template": "output_{ip}.out"}
+    NIST_APIKEY = dotenv.dotenv_values(".env").get("NIST_APIKEY")
+    HEADERS = {"apikey": NIST_APIKEY} if NIST_APIKEY is not None else {}
 
-DELAY = 0.65
+    OUTPUT_CONFIG = {"display": True, "out_file": None, "separator": "-"*10, "template": "output_{ip}.out"}
 
-if NIST_APIKEY is None:
-    DELAY *= 10
+    DELAY = 0.65
 
-CPE = "cpe"
-CVE = "CVE"
+    if NIST_APIKEY is None:
+        DELAY *= 10
 
-CACHE_FILE = "cache"
+    CPE = "cpe"
+    CVE = "CVE"
+
+    CACHE_FILE = "cache"
 
 
 def get_ip_data(ip: str) -> dict | None:
-    sleep(DELAY)
-    data = requests.get(INTERNETDB.format(ip_address=ip)).json()
+    sleep(Config.DELAY)
+    data = requests.get(Config.INTERNETDB.format(ip_address=ip)).json()
     output(data)
     if "detail" in data:
         if type(data["detail"]) is str:
@@ -42,8 +44,8 @@ def get_ip_data(ip: str) -> dict | None:
 def get_vuln_by_name(vuln_name: str) -> dict | None:
     vuln_name = vuln_name.replace("/", "2.3:")
     try:
-        sleep(DELAY)
-        data = requests.get(NIST_VULN_NAME.format(cpe_name=vuln_name), headers=HEADERS).json()
+        sleep(Config.DELAY)
+        data = requests.get(Config.NIST_VULN_NAME.format(cpe_name=vuln_name), headers=Config.HEADERS).json()
     except requests.exceptions.JSONDecodeError:
         return {"ERROR": f"{vuln_name} returned no results"}
     return data
@@ -51,18 +53,18 @@ def get_vuln_by_name(vuln_name: str) -> dict | None:
 
 def get_vuln_by_id(vuln_id: str) -> dict | None:
     try:
-        sleep(DELAY)
-        data = requests.get(NIST_VULN_ID.format(cve_id=vuln_id), headers=HEADERS).json()
+        sleep(Config.DELAY)
+        data = requests.get(Config.NIST_VULN_ID.format(cve_id=vuln_id), headers=Config.HEADERS).json()
     except requests.exceptions.JSONDecodeError:
         return {"ERROR": f"{vuln_id} returned no results"}
     return data
 
 
 def get_vuln(vuln_str: str) -> dict | None:
-    if vuln_str.lower().startswith(CPE):
+    if vuln_str.lower().startswith(Config.CPE):
         return get_vuln_by_name(vuln_str)
 
-    if vuln_str.lower().startswith(CVE):
+    if vuln_str.lower().startswith(Config.CVE):
         return get_vuln_by_id(vuln_str)
 
     raise ValueError(f"Invalid format: {vuln_str}")
@@ -109,7 +111,7 @@ def parse_vuln(data: dict, pos = 0, display_all = False) -> list[dict] | None:
 
 
 def handle_vuln(vuln_str: str, display_all: bool) -> list[dict] | None:
-    with shelve.open(CACHE_FILE) as cache:
+    with shelve.open(Config.CACHE_FILE) as cache:
         vuln_data = cache.get(vuln_str)
 
         if vuln_data is None:
@@ -145,9 +147,9 @@ def print_vuln(filtered_data: list[dict]) -> None:
 
 
 def output(text: str, *args, **kwargs) -> None:
-    if OUTPUT_CONFIG["display"]:
+    if Config.OUTPUT_CONFIG["display"]:
         print(text, *args, **kwargs)
-    out_file: str | None = OUTPUT_CONFIG["out_file"]
+    out_file: str | None = Config.OUTPUT_CONFIG["out_file"]
     if out_file is not None:
         out_file: str
         with open(out_file, "a", encoding="UTF-8") as f:
@@ -155,7 +157,7 @@ def output(text: str, *args, **kwargs) -> None:
 
 
 def separator():
-    output(OUTPUT_CONFIG["separator"])
+    output(Config.OUTPUT_CONFIG["separator"])
 
 
 def handle_ip(ip: str, display_all: bool = False) -> None:
@@ -195,19 +197,18 @@ def run_with_args():
     parser.add_argument("-h", "--hide-output", action="store_false",
                         help="Hides console output. The program will not output anything if --out-file is not set.")
     parser.add_argument("-o", "--out-file", help="File to which the output will be appended.",
-                        default=OUTPUT_CONFIG["out_file"], nargs="?", const=OUTPUT_CONFIG["template"])
+                        default=Config.OUTPUT_CONFIG["out_file"], nargs="?", const=Config.OUTPUT_CONFIG["template"])
     parser.add_argument("-s", "--separator", help="Define custom string to separate entries with.",
-                        default=OUTPUT_CONFIG["separator"])
+                        default=Config.OUTPUT_CONFIG["separator"])
     args = parser.parse_args()
 
     ip = args.ip
-
     if ip is None:
         ip = requests.get('https://api.ipify.org').content.decode('utf8')
 
-    OUTPUT_CONFIG["out_file"] = args.out_file.format(ip=ip) if args.out_file is not None else args.out_file
-    OUTPUT_CONFIG["display"] = args.hide_output
-    OUTPUT_CONFIG["separator"] = args.separator
+    Config.OUTPUT_CONFIG["out_file"] = args.out_file.format(ip=ip) if args.out_file is not None else args.out_file
+    Config.OUTPUT_CONFIG["display"] = args.hide_output
+    Config.OUTPUT_CONFIG["separator"] = args.separator
 
 
 if __name__ == '__main__':
