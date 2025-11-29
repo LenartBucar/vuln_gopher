@@ -4,6 +4,7 @@ from time import sleep
 import dotenv
 from socket import getservbyport
 import argparse
+import shelve
 
 INTERNETDB = "https://internetdb.shodan.io/{ip_address}"
 NIST_VULN_ID = "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
@@ -18,6 +19,11 @@ DELAY = 0.65
 
 if NIST_APIKEY is None:
     DELAY *= 10
+
+CPE = "cpe"
+CVE = "CVE"
+
+CACHE_FILE = "cache"
 
 
 def get_ip_data(ip: str) -> dict | None:
@@ -50,6 +56,16 @@ def get_vuln_by_id(vuln_id: str) -> dict | None:
     except requests.exceptions.JSONDecodeError:
         return {"ERROR": f"{vuln_id} returned no results"}
     return data
+
+
+def get_vuln(vuln_str: str) -> dict | None:
+    if vuln_str.lower().startswith(CPE):
+        return get_vuln_by_name(vuln_str)
+
+    if vuln_str.lower().startswith(CVE):
+        return get_vuln_by_id(vuln_str)
+
+    raise ValueError(f"Invalid format: {vuln_str}")
 
 
 def parse_vuln(data: dict, pos = 0, display_all = False) -> list[dict] | None:
@@ -92,6 +108,30 @@ def parse_vuln(data: dict, pos = 0, display_all = False) -> list[dict] | None:
     return result
 
 
+def handle_vuln(vuln_str: str, display_all: bool) -> list[dict] | None:
+    with shelve.open(CACHE_FILE) as cache:
+        vuln_data = cache.get(vuln_str)
+
+        if vuln_data is None:
+            vuln_data = get_vuln(vuln_str)
+
+            if "ERROR" in vuln_data:
+                output(vuln_data["ERROR"])
+                separator()
+                return None
+
+            try:
+                vuln_data = parse_vuln(vuln_data, display_all=display_all)
+            except ValueError as e:
+                output(f"{vuln_str}: {e}")
+                separator()
+                return None
+
+            cache[vuln_str] = vuln_data
+
+    print_vuln(vuln_data)
+
+
 def print_vuln(filtered_data: list[dict]) -> None:
     if filtered_data is None:
         raise ValueError("No data returned")
@@ -126,32 +166,12 @@ def handle_ip(ip: str, display_all: bool = False) -> None:
     for port_num in data["ports"]:
         try:
             output(f"Port: {port_num} - {getservbyport(port_num)}")
-        except OSError as e:
+        except OSError:
             output(f"Port: {port_num} - no known service found")
+    separator()
 
-    for name in data["cpes"]:
-        vuln = get_vuln_by_name(name)
-        if "ERROR" in vuln:
-            output(vuln["ERROR"])
-            separator()
-            continue
-        try:
-            print_vuln(parse_vuln(vuln, display_all=display_all))
-        except ValueError as e:
-            output(f"{name}: {e}")
-            separator()
-
-    for vuln_id in data["vulns"]:
-        vuln = get_vuln_by_id(vuln_id)
-        if "ERROR" in vuln:
-            output(vuln["ERROR"])
-            separator()
-            continue
-        try:
-            print_vuln(parse_vuln(vuln, display_all=display_all))
-        except ValueError as e:
-            output(f"{vuln_id}: {e}")
-            separator()
+    for vuln_str in data["cpes"] + data["vulns"]:
+        handle_vuln(vuln_str, display_all=display_all)
 
 
 def main():
