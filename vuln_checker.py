@@ -3,6 +3,7 @@ import json
 from time import sleep
 import dotenv
 from socket import getservbyport
+import argparse
 
 INTERNETDB = "https://internetdb.shodan.io/{ip_address}"
 NIST_VULN_ID = "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
@@ -11,7 +12,7 @@ NIST_VULN_NAME = "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName={cpe_
 NIST_APIKEY = dotenv.dotenv_values(".env").get("NIST_APIKEY")
 HEADERS = {"apikey": NIST_APIKEY} if NIST_APIKEY is not None else {}
 
-OUTPUT_CONFIG = {"display": True, "out_file": None, "buffer": "-"*10}
+OUTPUT_CONFIG = {"display": True, "out_file": None, "separator": "-"*10, "template": "output_{ip}.out"}
 
 DELAY = 0.65
 
@@ -100,7 +101,7 @@ def print_vuln(filtered_data: list[dict]) -> None:
         output(f"Comment: {vuln['comment']}")
         output(f"Impact: {vuln['impact']}")
         output(f"Solution: {vuln['solution']}")
-        buffer()
+        separator()
 
 
 def output(text: str, *args, **kwargs) -> None:
@@ -112,43 +113,45 @@ def output(text: str, *args, **kwargs) -> None:
         with open(out_file, "a", encoding="UTF-8") as f:
             print(text, *args, file=f, **kwargs)
 
-def buffer():
-    output(OUTPUT_CONFIG["buffer"])
+
+def separator():
+    output(OUTPUT_CONFIG["separator"])
+
 
 def handle_ip(ip: str, display_all: bool = False) -> None:
     data = get_ip_data(ip)
     if data is None:
         return
 
-    for name in data["cpes"]:
-        vuln = get_vuln_by_name(name)
-        if "ERROR" in vuln:
-            output(vuln["ERROR"])
-            buffer()
-            continue
-        try:
-            print_vuln(parse_vuln(vuln, display_all=display_all))
-        except ValueError as e:
-            output(f"{name}: {e}")
-            buffer()
-
-    for vuln_id in data["vulns"]:
-        vuln = get_vuln_by_id(vuln_id)
-        if "ERROR" in vuln:
-            output(vuln["ERROR"])
-            buffer()
-            continue
-        try:
-            print_vuln(parse_vuln(vuln, display_all=display_all))
-        except ValueError as e:
-            output(f"{vuln_id}: {e}")
-            buffer()
-
     for port_num in data["ports"]:
         try:
             output(f"Port: {port_num} - {getservbyport(port_num)}")
         except OSError as e:
             output(f"Port: {port_num} - no known service found")
+
+    for name in data["cpes"]:
+        vuln = get_vuln_by_name(name)
+        if "ERROR" in vuln:
+            output(vuln["ERROR"])
+            separator()
+            continue
+        try:
+            print_vuln(parse_vuln(vuln, display_all=display_all))
+        except ValueError as e:
+            output(f"{name}: {e}")
+            separator()
+
+    for vuln_id in data["vulns"]:
+        vuln = get_vuln_by_id(vuln_id)
+        if "ERROR" in vuln:
+            output(vuln["ERROR"])
+            separator()
+            continue
+        try:
+            print_vuln(parse_vuln(vuln, display_all=display_all))
+        except ValueError as e:
+            output(f"{vuln_id}: {e}")
+            separator()
 
 
 def main():
@@ -166,5 +169,27 @@ def main():
     handle_ip(ip)
 
 
+def run_with_args():
+    parser = argparse.ArgumentParser(description="Open vulnerability checker")
+    parser.add_argument("ip", help="IP address to check", default=None)
+    parser.add_argument("-h", "--hide-output", action="store_false",
+                        help="Hides console output. The program will not output anything if --out-file is not set.")
+    parser.add_argument("-o", "--out-file", help="File to which the output will be appended.",
+                        default=OUTPUT_CONFIG["out_file"], nargs="?", const=OUTPUT_CONFIG["template"])
+    parser.add_argument("-s", "--separator", help="Define custom string to separate entries with.",
+                        default=OUTPUT_CONFIG["separator"])
+    args = parser.parse_args()
+
+    ip = args.ip
+
+    if ip is None:
+        ip = requests.get('https://api.ipify.org').content.decode('utf8')
+
+    OUTPUT_CONFIG["out_file"] = args.out_file.format(ip=ip) if args.out_file is not None else args.out_file
+    OUTPUT_CONFIG["display"] = args.hide_output
+    OUTPUT_CONFIG["separator"] = args.separator
+
+
 if __name__ == '__main__':
+
     main()
