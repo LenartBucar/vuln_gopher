@@ -1,9 +1,13 @@
 import requests
 from time import sleep
-import dotenv
 from socket import getservbyport
 import argparse
 import shelve
+
+try:
+    from dotenv import dotenv_values
+except ImportError:
+    dotenv_values = lambda x: {}
 
 
 class Config:
@@ -13,7 +17,7 @@ class Config:
     NIST_VULN_NAME = "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName={cpe_name}"
 
     # Load API key for NIST, if it is available
-    NIST_APIKEY = dotenv.dotenv_values(".env").get("NIST_APIKEY")
+    NIST_APIKEY = dotenv_values(".env").get("NIST_APIKEY")
     HEADERS = {"apikey": NIST_APIKEY} if NIST_APIKEY is not None else {}
 
     DELAY = 0.65
@@ -41,7 +45,6 @@ def get_ip_data(ip: str) -> dict | None:
     :param ip: IP address
     :return: data about the given IP address or None if an error occurs (Invalid IP address or no information about it)
     """
-    sleep(Config.DELAY)
     data = requests.get(Config.INTERNETDB.format(ip_address=ip)).json()
     if "detail" in data:
         if type(data["detail"]) is str:
@@ -52,7 +55,7 @@ def get_ip_data(ip: str) -> dict | None:
     return data
 
 
-def get_vuln_by_name(vuln_name: str) -> dict | None:
+def get_vuln_by_name(vuln_name: str) -> dict:
     """
     Queries NIST Vulnerabilities API using a CPE name
     :param vuln_name: CPE name
@@ -67,7 +70,7 @@ def get_vuln_by_name(vuln_name: str) -> dict | None:
     return data
 
 
-def get_vuln_by_id(vuln_id: str) -> dict | None:
+def get_vuln_by_id(vuln_id: str) -> dict:
     """
     Queries NIST Vulnerabilities API using a CVE ID
     :param vuln_id: CVE ID
@@ -81,7 +84,7 @@ def get_vuln_by_id(vuln_id: str) -> dict | None:
     return data
 
 
-def get_vuln(vuln_str: str) -> dict | None:
+def get_vuln(vuln_str: str) -> dict:
     """
     Decide whether the given string represents a CPE or CVE and queries an appropriate API
     :param vuln_str: string representing either a CPE or CVE
@@ -159,14 +162,14 @@ def handle_vuln(vuln_str: str) -> None:
 
             if "ERROR" in vuln_data:
                 output(vuln_data["ERROR"])
-                separator()
+                output_separator()
                 return None
 
             try:
                 vuln_data = parse_vuln(vuln_data)
             except ValueError as e:
                 output(f"{vuln_str}: {e}")
-                separator()
+                output_separator()
                 return None
 
             cache[vuln_str] = vuln_data
@@ -175,7 +178,7 @@ def handle_vuln(vuln_str: str) -> None:
         print_vuln(vuln_data)
     except ValueError as e:
         output(f"{vuln_str}: {e}")
-        separator()
+        output_separator()
 
 
 def print_vuln(filtered_data: list[dict] | None) -> None:
@@ -193,7 +196,7 @@ def print_vuln(filtered_data: list[dict] | None) -> None:
         output(f"Comment: {vuln['comment']}")
         output(f"Impact: {vuln['impact']}")
         output(f"Solution: {vuln['solution']}")
-        separator()
+        output_separator()
 
 
 def output(text: str, *args, **kwargs) -> None:
@@ -216,7 +219,7 @@ def output(text: str, *args, **kwargs) -> None:
             print(text, *args, file=f, **kwargs)
 
 
-def separator() -> None:
+def output_separator() -> None:
     """
     Outputs a separator string between sections, as defined in Config.OUTPUT_CONFIG["separator"]
     :return: None
@@ -224,7 +227,7 @@ def separator() -> None:
     output(Config.OUTPUT_CONFIG["separator"])
 
 
-def handle_ip(ip: str) -> None:
+def process_ip(ip: str) -> None:
     """
     Fetches, parses, and outputs all of the information about a given IP address.
     :param ip: IP address
@@ -232,6 +235,7 @@ def handle_ip(ip: str) -> None:
     """
     data = get_ip_data(ip)
     if data is None:
+        output(f"No information found for IP address {ip}")
         return
 
     output(f"Information about IP: {ip}")
@@ -244,7 +248,7 @@ def handle_ip(ip: str) -> None:
             output(f"Port: {port_num} - {getservbyport(port_num)}")
         except OSError:
             output(f"Port: {port_num} - no known service found")
-    separator()
+    output_separator()
 
     if data["cpes"] or data["vulns"]:
         output("Detected vulnerabilities:")
@@ -265,13 +269,13 @@ def main():
 
     # ip = "91.216.172.11"
     ip = "84.255.196.242"
-    handle_ip(ip)
+    process_ip(ip)
 
 
 def run_with_args():
     parser = argparse.ArgumentParser(description="Open vulnerability checker")
     parser.add_argument("ip", help="IP address to check. Leave blank to use your public IP address.", default=None)
-    parser.add_argument("-h", "--hide-output", action="store_false",
+    parser.add_argument("-q", "--quiet-output", action="store_true",
                         help="Hides console output. The program will not output anything if --out-file is not set.")
     parser.add_argument("-o", "--out-file", help="File to which the output will be appended.",
                         default=Config.OUTPUT_CONFIG["out_file"], nargs="?", const=Config.OUTPUT_CONFIG["template"])
@@ -286,10 +290,12 @@ def run_with_args():
         ip = requests.get('https://api.ipify.org').content.decode('utf8')
 
     Config.OUTPUT_CONFIG["out_file"] = args.out_file.format(ip=ip) if args.out_file is not None else args.out_file
-    Config.OUTPUT_CONFIG["display"] = args.hide_output
+    Config.OUTPUT_CONFIG["display"] = not args.quiet_output
     Config.OUTPUT_CONFIG["separator"] = args.separator
     Config.SKIP_CACHE = args.force
     Config.DISPLAY_ALL = args.verbose
+
+    process_ip(ip)
 
 
 if __name__ == '__main__':
