@@ -4,7 +4,7 @@ Vuln gopher is a CLI tool intended for quick surface level analysis of open port
 
 ## Setup
 
-The tool was developed using Python 3.14, but it might work on some earlier versions as well. The tool works out of the box using only packages in standard library, however if one wants to use a NIST API key with it to increase rate limits (and reduce delays between API calls) the package `dotenv` needs to be installed. 
+The tool was developed using Python 3.14, but it might work on some earlier versions as well. The tool needs a package `requests` which needs to be installed manually (for example with PIP using `pip install requests`) for basic functionality, however if one wants to use a NIST API key with it to increase rate limits (and reduce delays between API calls) the package `dotenv` needs to be installed as well. 
 
 ### Obtaining a NIST API key
 
