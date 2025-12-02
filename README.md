@@ -41,4 +41,4 @@ At the beginning, `argparse` is used to parse the command line arguments. Most o
 - `python vuln_gopher.py -o` - Run an analysis and store the results into an auto-generated file
 - `python vuln_gopher.py -o Analysis_{ip}.out` - Run an analysis and store the results into file `Analysis_{ip}.out` where `{ip}` is replaced by the current IP
 - `python vuln_gopher.py -q -o` - Run an analysis and store the results into a file without displaying them on screen
-- `python vuln_gopher.py -fov` - Run an analysis and check ALL vulnerabilities returned, while updating all cached values and storing the result into a file. 
+- `python vuln_gopher.py -f -o -v` - Run an analysis and check ALL vulnerabilities returned, while updating all cached values and storing the result into a file. 
