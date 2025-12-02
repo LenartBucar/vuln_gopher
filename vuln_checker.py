@@ -38,6 +38,8 @@ class Config:
 
     DISPLAY_ALL = False
 
+    IP_EXAMPLES = {"one": "1.1.1.1", "full": "84.255.196.242"}
+
 
 def get_ip_data(ip: str) -> dict | None:
     """
@@ -273,11 +275,14 @@ def main():
 
 
 def run_with_args():
-    parser = argparse.ArgumentParser(description="Open vulnerability checker")
-    parser.add_argument("ip", help="IP address to check. Leave blank to use your public IP address.", default=None)
+    description_str = "This tool is intended for surface level analysis of open ports and vulnerabilities on a target machine."
+    epilog_str = "The data may be up to a week out of date. If the program seems to take forever to run, you may need a NIST API key to speed it up. Detailed instructions should be in the documentation."
+
+    parser = argparse.ArgumentParser(description=description_str, epilog=epilog_str)
+    parser.add_argument("ip", help="IP address to check. Leave blank to use your public IP address.", default=None, nargs="?")
     parser.add_argument("-q", "--quiet-output", action="store_true",
                         help="Hides console output. The program will not output anything if --out-file is not set.")
-    parser.add_argument("-o", "--out-file", help="File to which the output will be appended.",
+    parser.add_argument("-o", "--out-file", help="File to which the output will be appended. Leave blank to automatically generate a name. Template {ip} will be replaced by the target IP.",
                         default=Config.OUTPUT_CONFIG["out_file"], nargs="?", const=Config.OUTPUT_CONFIG["template"])
     parser.add_argument("-s", "--separator", help="Define custom string to separate entries with.",
                         default=Config.OUTPUT_CONFIG["separator"])
@@ -288,6 +293,9 @@ def run_with_args():
     ip = args.ip
     if ip is None:  # Get the machine's public IP address
         ip = requests.get('https://api.ipify.org').content.decode('utf8')
+
+    if ip in Config.IP_EXAMPLES:
+        ip = Config.IP_EXAMPLES[ip]
 
     Config.OUTPUT_CONFIG["out_file"] = args.out_file.format(ip=ip) if args.out_file is not None else args.out_file
     Config.OUTPUT_CONFIG["display"] = not args.quiet_output
@@ -300,4 +308,4 @@ def run_with_args():
 
 if __name__ == '__main__':
 
-    main()
+    run_with_args()
