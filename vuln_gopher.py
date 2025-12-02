@@ -38,7 +38,7 @@ class Config:
 
     DISPLAY_ALL = False
 
-    IP_EXAMPLES = {"one": "1.1.1.1", "full": "84.255.196.242"}
+    IP_EXAMPLES = {"one": "1.1.1.1", "test": "84.255.196.242"}
 
 
 def get_ip_data(ip: str) -> dict | None:
