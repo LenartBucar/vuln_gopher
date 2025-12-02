@@ -1,6 +1,6 @@
-# Vuln checker
+# Vuln gopher
 
-Vuln checker is a CLI tool intended for quick surface level analysis of open ports and vulnerabilities on any machine connected into the internet. The tool itself does absolutely no offensive analysis and it does not interact with the target machine in any way. It instead relies on InternetDB Public API (by Shodan.io) which periodically checks all of the devices. That means that the information provided by the tool may be up to a week out of date, and it does not guarantee to provide every single vulnerability on the target machine. The IP addresses are not always fixed - they can change around. That means that the tool may return information about an IP as it was a few days ago, not necessarily the current state. 
+Vuln gopher is a CLI tool intended for quick surface level analysis of open ports and vulnerabilities on any machine connected into the internet. The tool itself does absolutely no offensive analysis and it does not interact with the target machine in any way. It instead relies on InternetDB Public API (by Shodan.io) which periodically checks all of the devices. That means that the information provided by the tool may be up to a week out of date, and it does not guarantee to provide every single vulnerability on the target machine. The IP addresses are not always fixed - they can change around. That means that the tool may return information about an IP as it was a few days ago, not necessarily the current state. 
 
 ## Setup
 
@@ -10,11 +10,11 @@ The tool was developed using Python 3.14, but it might work on some earlier vers
 
 The tool relies on the availability of the [NIST Vulnerability API](https://nvd.nist.gov/developers/vulnerabilities). The API has a rate limit of 5 calls per 30 seconds. To increase the limit to 50 calls per 30 seconds, a free API key is needed. The key can be obtained from [their website](https://nvd.nist.gov/developers/request-an-api-key) for free, using an email address.
 
-To use the key with the tool, create a `.env` file in the directory with the `vuln_checker.py` script, and add a key `NIST_APIKEY={your key}` into the file where `{your key}` is replaced with the obtained API key. 
+To use the key with the tool, create a `.env` file in the directory with the `vuln_gopher.py` script, and add a key `NIST_APIKEY={your key}` into the file where `{your key}` is replaced with the obtained API key. 
 
 ## Usage
 
-The simplest way to run the tool is to simply call `python vuln_checker.py`. That will automatically select the public IP of our current internet connection and display the result onto stdout. By adding the IP after the call, any IP can be checked (e.g. `python vuln_checker.py 1.1.1.1`). Besides that, the tool offers the following options / flags:
+The simplest way to run the tool is to simply call `python vuln_gopher.py`. That will automatically select the public IP of our current internet connection and display the result onto stdout. By adding the IP after the call, any IP can be checked (e.g. `python vuln_gopher.py 1.1.1.1`). Besides that, the tool offers the following options / flags:
 
 - `-q` or `--quiet` suppresses the console output of the program.
 - `-o` or `--out-file` writes output to the provided log file. If the filename is not provided but the flag is set, the file will be named automatically. In the file name, template `{ip}` will be automatically replaced with the target IP address.
@@ -35,10 +35,10 @@ At the beginning, `argparse` is used to parse the command line arguments. Most o
 
 ## Usage examples
 
-- `python vuln_checker.py` - Display quick analysis of the public IP of the current internet connection
-- `python vuln_checker.py 1.1.1.1` - Display quick analysis of the IP `1.1.1.1`
-- `python vuln_checker.py -h` - Display help
-- `python vuln_checker.py -o` - Run an analysis and store the results into an auto-generated file
-- `python vuln_checker.py -o Analysis_{ip}.out` - Run an analysis and store the results into file `Analysis_{ip}.out` where `{ip}` is replaced by the current IP
-- `python vuln_checker.py -q -o` - Run an analysis and store the results into a file without displaying them on screen
-- `python vuln_checker.py -fov` - Run an analysis and check ALL vulnerabilities returned, while updating all cached values and storing the result into a file. 
+- `python vuln_gopher.py` - Display quick analysis of the public IP of the current internet connection
+- `python vuln_gopher.py 1.1.1.1` - Display quick analysis of the IP `1.1.1.1`
+- `python vuln_gopher.py -h` - Display help
+- `python vuln_gopher.py -o` - Run an analysis and store the results into an auto-generated file
+- `python vuln_gopher.py -o Analysis_{ip}.out` - Run an analysis and store the results into file `Analysis_{ip}.out` where `{ip}` is replaced by the current IP
+- `python vuln_gopher.py -q -o` - Run an analysis and store the results into a file without displaying them on screen
+- `python vuln_gopher.py -fov` - Run an analysis and check ALL vulnerabilities returned, while updating all cached values and storing the result into a file. 
